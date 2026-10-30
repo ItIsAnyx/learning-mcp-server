@@ -19,7 +19,7 @@ client = AsyncOpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
 allowed_tools_names={
     "vkusvill_products_search",
     "vkusvill_product_analogs",
-    "vkusvill_product_details"
+    "vkusvill_product_details",
     "vkusvill_product_barcode",
     "vkusvill_products_discount",
     "vkusvill_recipes",
@@ -73,7 +73,12 @@ async def call_llm(messages, tools, mcp):
             tool_name = call.function.name
 
             if tool_name not in allowed_tools_names:
-                raise HTTPException(status_code=502, detail=f"Unexpected tool call: {tool_name}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": f"Error: tool '{tool_name}' is not available.",
+                })
+                continue
 
             arguments = json.loads(call.function.arguments)
             tool_result = await mcp.call_tool(tool_name, arguments)
@@ -95,11 +100,14 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/request")
-async def request(request: Request) -> Response:
-    messages = [
+async def request(payload: Request) -> Response:
+    messages = payload.context + [{"role": "user", "content": payload.message}] if payload.context else [
         {"role": "system", "content": system_prompt1},
-        {"role": "user", "content": request.message},
+        {"role": "user", "content": payload.message},
     ]
+    
+    if messages[0]["role"] != "system":
+        messages.insert(0, {"role": "system", "content": system_prompt1})
 
     async with Client("https://mcp.vkusvill.ru/mcp") as mcp:
         listed = await mcp.list_tools()
