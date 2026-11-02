@@ -1,0 +1,13 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: learning-mcp-server:learning-mcp-backend
+
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    env_file:
+      - .env
